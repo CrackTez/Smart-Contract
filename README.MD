@@ -1,3 +1,3 @@
 Repo for SC for the project
 
-Run it on Tezpy IDE
+Run it https://smartpy.io/ide
