@@ -1,14 +1,17 @@
 import smartpy as sp
 
-class PostLedger:
+class PostLedger: 
     def get_type():
         return sp.TRecord(
                 author = sp.TAddress,
                 copies_max = sp.TNat,
                 copies_remaining = sp.TNat,
+                title = sp.TString,
+                thumbnail_url = sp.TString,
                 ipfs_url = sp.TString,
                 owners = sp.TMap(sp.TNat, sp.TRecord(owner_address=sp.TAddress, price=sp.TMutez, on_sale=sp.TBool)),
                 royalty_percent = sp.TNat,
+                timestamp = sp.TTimestamp
             )
 
 class Contract(sp.Contract):
@@ -20,8 +23,10 @@ class Contract(sp.Contract):
         )
 
     @sp.entry_point
-    def create_post(self, ipfs_url, price, copies, royalty, sell):
+    def create_post(self, ipfs_url, price, copies, royalty, sell, thumbnail_url, title):
         sp.set_type(ipfs_url, sp.TString)
+        sp.set_type(title, sp.TString)
+        sp.set_type(thumbnail_url, sp.TString)
         sp.set_type(price, sp.TMutez)
         sp.set_type(copies, sp.TNat)
         sp.set_type(royalty, sp.TNat)
@@ -42,8 +47,11 @@ class Contract(sp.Contract):
             copies_max = copies,
             copies_remaining = copies,
             ipfs_url = ipfs_url,
+            thumbnail_url = thumbnail_url,
+            title = title,
             owners = owners.value,
             royalty_percent = royalty,
+            timestamp = sp.timestamp_from_utc_now()
         )
         self.data.next_count += 1
 
@@ -117,6 +125,8 @@ def main():
 
     cont.create_post(
         ipfs_url="ok",
+        thumbnail_url="ok",
+        title="Demo Post",
         price = sp.tez(1),
         copies = sp.nat(10),
         royalty = sp.nat(10),
