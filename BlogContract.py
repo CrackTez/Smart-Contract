@@ -4,14 +4,13 @@ class PostLedger:
     def get_type():
         return sp.TRecord(
                 author = sp.TAddress,
-                copies_max = sp.TNat,
-                copies_remaining = sp.TNat,
                 title = sp.TString,
                 thumbnail_url = sp.TString,
                 ipfs_url = sp.TString,
-                owners = sp.TMap(sp.TNat, sp.TRecord(owner_address=sp.TAddress, price=sp.TMutez, on_sale=sp.TBool)),
-                royalty_percent = sp.TNat,
-                timestamp = sp.TTimestamp
+                timestamp = sp.TTimestamp,
+                fundraising_goal = sp.TMutez,
+                fundraised = sp.TMutez,
+                contributers = sp.TMap(sp.TAddress, sp.TMutez)
             )
 
 class Contract(sp.Contract):
@@ -23,95 +22,42 @@ class Contract(sp.Contract):
         )
 
     @sp.entry_point
-    def create_post(self, ipfs_url, price, copies, royalty, sell, thumbnail_url, title):
+    def create_post(self, ipfs_url, thumbnail_url, title, fr_goal):
         sp.set_type(ipfs_url, sp.TString)
         sp.set_type(title, sp.TString)
         sp.set_type(thumbnail_url, sp.TString)
-        sp.set_type(price, sp.TMutez)
-        sp.set_type(copies, sp.TNat)
-        sp.set_type(royalty, sp.TNat)
-        sp.set_type(sell, sp.TBool)
-
-        owners = sp.local("owners", sp.map(l={}, tkey=sp.TNat, tvalue=sp.TRecord(owner_address=sp.TAddress, price=sp.TMutez, on_sale=sp.TBool)))
-        idx = sp.local("idx", sp.nat(1))
-        sp.while idx.value <= copies:
-            owners.value[idx.value] = sp.record(
-                owner_address=sp.sender,
-                price=price,
-                on_sale=sell
-            )
-            idx.value += sp.nat(1)
+        sp.set_type(fr_goal, sp.TMutez)
  
         self.data.posts[self.data.next_count] = sp.record(
             author = sp.sender,
-            copies_max = copies,
-            copies_remaining = copies,
             ipfs_url = ipfs_url,
             thumbnail_url = thumbnail_url,
             title = title,
-            owners = owners.value,
-            royalty_percent = royalty,
-            timestamp = sp.timestamp_from_utc_now()
+            timestamp = sp.now,
+            fundraising_goal = fr_goal,
+            fundraised = sp.mutez(0),
+            contributers = sp.map(l={}, tkey=sp.TAddress, tvalue = sp.TMutez)
         )
         self.data.next_count += 1
 
     @sp.entry_point
-    def buy_post(self, post_id, copy_id):
+    def send_tip(self, post_id):
         sp.set_type(post_id, sp.TNat)
-        sp.set_type(copy_id, sp.TNat)
 
         sp.verify(self.data.posts.contains(post_id), "POST DOES NOT EXIST")
         post = self.data.posts[post_id]
-        sp.verify(post.owners.contains(copy_id), "COPY DOES NOT EXIST")
-        copy = post.owners[copy_id]
+        sp.verify(sp.sender != post.author, "AUTHOR CANNOT TIP OWN POSTS")
+
+        contributers = post.contributers
+
+        contribute_amt = sp.local("contribute_amt", sp.amount)
+        sp.if contributers.contains(sp.sender):
+            contribute_amt.value += contributers[sp.sender]
+        sp.send(post.author,sp.amount)
+        post.fundraised += sp.amount
+        contributers[sp.sender] = contribute_amt.value
+
         
-        sp.verify(sp.amount >= copy.price, "NOT ENOUGH TEZ")
-        sp.verify(copy.on_sale, "NOT ON SALE")
-
-        remaining_tez = sp.amount - copy.price
-        author_share = sp.split_tokens(copy.price, post.royalty_percent, 100)
-        reseller_share = copy.price - author_share
-        sp.send(copy.owner_address, reseller_share)
-        sp.send(post.author, author_share)
-        sp.if remaining_tez > sp.tez(0):
-            sp.send(sp.sender, remaining_tez)
-
-        post.owners[copy_id] = sp.record(owner_address=sp.sender,price=copy.price,on_sale=sp.bool(False))
-
-        sp.if post.copies_remaining > 0:
-            post.copies_remaining = sp.as_nat(post.copies_remaining - 1)
-
-    @sp.entry_point
-    def set_sale(self, post_id, copy_id, sell, price):
-        sp.set_type(post_id, sp.TNat)
-        sp.set_type(copy_id, sp.TNat)
-        sp.set_type(sell, sp.TBool)
-        sp.set_type(price, sp.TMutez)
-
-        sp.verify(self.data.posts.contains(post_id), "POST DOES NOT EXIST")
-        post = self.data.posts[post_id]
-        sp.verify(post.owners.contains(copy_id), "COPY DOES NOT EXIST")
-        copy = post.owners[copy_id]
-
-        sp.verify(copy.owner_address == sp.sender, "YOU DONT OWN THAT POST COPY")
-
-        copy.on_sale = sell
-        copy.price = price
-
-    @sp.entry_point
-    def transfer(self, post_id, copy_id, transfer_to):
-        sp.set_type(post_id, sp.TNat)
-        sp.set_type(copy_id, sp.TNat)
-        sp.set_type(transfer_to, sp.TAddress)
-
-        sp.verify(self.data.posts.contains(post_id), "POST DOES NOT EXIST")
-        post = self.data.posts[post_id]
-        sp.verify(post.owners.contains(copy_id), "COPY DOES NOT EXIST")
-        copy = post.owners[copy_id]
-
-        sp.verify(copy.owner_address == sp.sender, "UNAUTHORISED")
-
-        post.owners[copy_id] = sp.record(owner_address=transfer_to, price=copy.price, on_sale=sp.bool(False))
 
 @sp.add_test(name="main")
 def main():
@@ -122,36 +68,17 @@ def main():
 
     weeblet = sp.test_account ("weeblet")
     other = sp.test_account ("oth")
+    other1 = sp.test_account ("oth1")
 
     cont.create_post(
         ipfs_url="ok",
         thumbnail_url="ok",
         title="Demo Post",
-        price = sp.tez(1),
-        copies = sp.nat(10),
-        royalty = sp.nat(10),
-        sell = sp.bool(True)
+        fr_goal = sp.tez(69)
     ).run(sender = weeblet)
 
-    cont.buy_post(
-        post_id=sp.nat(0),
-        copy_id=sp.nat(1)
-    ).run(sender=other, amount=sp.tez(1))
+    cont.send_tip(0).run(sender=other1.address, amount=sp.mutez(10000))
+    cont.send_tip(0).run(sender=other.address, amount=sp.tez(1))
+    cont.send_tip(0).run(valid=False, sender=weeblet.address, amount=sp.tez(2))
+    cont.send_tip(0).run(sender=other.address, amount=sp.tez(2))
 
-    cont.set_sale(
-        post_id=sp.nat(0),
-        copy_id=sp.nat(1),
-        sell = sp.bool(True),
-        price = sp.tez(1)
-    ).run(sender=other)
-
-    cont.buy_post(
-        post_id=sp.nat(0),
-        copy_id=sp.nat(1)
-    ).run(sender=weeblet, amount=sp.tez(1))
-
-    cont.transfer(
-        post_id=sp.nat(0),
-        copy_id=sp.nat(2),
-        transfer_to = other.address
-    ).run(sender=weeblet)
