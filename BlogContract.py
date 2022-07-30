@@ -1,6 +1,7 @@
 import smartpy as sp
 
 class PostLedger: 
+    # Providing type to Values
     def get_type():
         return sp.TRecord(
                 author = sp.TAddress,
@@ -15,7 +16,7 @@ class PostLedger:
 
 class Contract(sp.Contract):
     def __init__(self):
-        # Storage
+        # Storing Default Values
         self.init(
             posts = sp.big_map(l = {}, tkey = sp.TNat, tvalue = PostLedger.get_type()),
             next_count = sp.nat(0)
@@ -23,11 +24,13 @@ class Contract(sp.Contract):
 
     @sp.entry_point
     def create_post(self, ipfs_url, thumbnail_url, title, fr_goal):
+        # Type Constraining
         sp.set_type(ipfs_url, sp.TString)
         sp.set_type(title, sp.TString)
         sp.set_type(thumbnail_url, sp.TString)
         sp.set_type(fr_goal, sp.TMutez)
  
+        # Storage Updates
         self.data.posts[self.data.next_count] = sp.record(
             author = sp.sender,
             ipfs_url = ipfs_url,
@@ -44,6 +47,7 @@ class Contract(sp.Contract):
     def send_tip(self, post_id):
         sp.set_type(post_id, sp.TNat)
 
+        # Verification statements
         sp.verify(self.data.posts.contains(post_id), "POST DOES NOT EXIST")
         post = self.data.posts[post_id]
         sp.verify(sp.sender != post.author, "AUTHOR CANNOT TIP OWN POSTS")
@@ -63,9 +67,11 @@ class Contract(sp.Contract):
 def main():
     scenario = sp.test_scenario()
     
+    # Create Contract
     cont = Contract()
     scenario += cont
 
+    # Test address
     weeblet = sp.test_account ("weeblet")
     other = sp.test_account ("oth")
     other1 = sp.test_account ("oth1")
@@ -77,6 +83,7 @@ def main():
         fr_goal = sp.tez(69)
     ).run(sender = weeblet)
 
+    # Change Create Post
     cont.send_tip(0).run(sender=other1.address, amount=sp.mutez(10000))
     cont.send_tip(0).run(sender=other.address, amount=sp.tez(1))
     cont.send_tip(0).run(valid=False, sender=weeblet.address, amount=sp.tez(2))
