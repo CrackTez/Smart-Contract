@@ -112,4 +112,3 @@ def main():
 
     c2.set_storage_from(cont.address).run(sender=weeblet)
     c2.set_storage_from(cont.address).run(sender=other, valid=False)
-
