@@ -22,14 +22,14 @@ class Contract(sp.Contract):
             next_count = sp.nat(0)
         )
 
-    @sp.entry_point
-    def set_storage_from(self, addr):
-        sp.set_type(addr, sp.TAddress)
-        sp.verify(sp.sender == self.data.admin, "UNAUTHORISED")
-        NextCount = sp.view("GetNextCount", addr, sp.nat(0), t=sp.TNat)
-        Posts = sp.view("GetPosts", addr, sp.nat(0), t=sp.TBigMap(sp.TNat,PostLedger.get_type()))
-        self.data.next_count = NextCount.open_some()
-        self.data.posts = Posts.open_some()
+    #@sp.entry_point
+    #def set_storage_from(self, addr):
+    #    sp.set_type(addr, sp.TAddress)
+    #    sp.verify(sp.sender == self.data.admin, "UNAUTHORISED")
+    #    NextCount = sp.view("GetNextCount", addr, sp.nat(0), t=sp.TNat)
+    #    Posts = sp.view("GetPosts", addr, sp.nat(0), t=sp.TBigMap(sp.TNat,PostLedger.get_type()))
+    #    self.data.next_count = NextCount.open_some()
+    #    self.data.posts = Posts.open_some()
 
     @sp.entry_point
     def create_post(self, ipfs_url, thumbnail_url, title, fr_goal):
@@ -60,22 +60,22 @@ class Contract(sp.Contract):
 
         contributers = post.contributers
 
-        contribute_amt = sp.local("contribute_amt", sp.amount - sp.mutez(2000))
+        contribute_amt = sp.local("contribute_amt", sp.amount)
         sp.send(post.author,contribute_amt.value)
         post.fundraised += contribute_amt.value
         sp.if contributers.contains(sp.sender):
             contribute_amt.value += contributers[sp.sender]
         contributers[sp.sender] = contribute_amt.value
 
-    @sp.onchain_view(name = "GetNextCount")
-    def get_next_count(self, x):
-        sp.set_type(x, sp.TNat)
-        sp.result(self.data.next_count)
+    #@sp.onchain_view(name = "GetNextCount")
+    #def get_next_count(self, x):
+    #    sp.set_type(x, sp.TNat)
+    #    sp.result(self.data.next_count)
 
-    @sp.onchain_view(name = "GetPosts")
-    def get_posts(self, x):
-        sp.set_type(x, sp.TNat)
-        sp.result(self.data.posts)
+    #@sp.onchain_view(name = "GetPosts")
+    #def get_posts(self, x):
+    #    sp.set_type(x, sp.TNat)
+    #    sp.result(self.data.posts)
 
         
 
@@ -102,13 +102,13 @@ def main():
     cont.send_tip(0).run(sender=weeblet, amount=sp.tez(2), valid=False)
     cont.send_tip(0).run(sender=other, amount=sp.tez(2))
 
-    v = sp.view("GetNextCount", cont.address, sp.nat(0), t=sp.TNat)
-    scenario.show(v)
-    v = sp.view("GetPosts", cont.address, sp.nat(0), t=sp.TBigMap(sp.TNat,PostLedger.get_type()))
-    scenario.show(v)
+    #v = sp.view("GetNextCount", cont.address, sp.nat(0), t=sp.TNat)
+    #scenario.show(v)
+    #v = sp.view("GetPosts", cont.address, sp.nat(0), t=sp.TBigMap(sp.TNat,PostLedger.get_type()))
+    #scenario.show(v)
 
-    c2 = Contract()
-    scenario += c2
+    #c2 = Contract()
+    #scenario += c2
 
-    c2.set_storage_from(cont.address).run(sender=weeblet)
-    c2.set_storage_from(cont.address).run(sender=other, valid=False)
+    #c2.set_storage_from(cont.address).run(sender=weeblet)
+    #c2.set_storage_from(cont.address).run(sender=other, valid=False)
